@@ -2,11 +2,12 @@ package com.dhruv.minid_coat.Service;
 
 import com.dhruv.minid_coat.Model.Game;
 import com.dhruv.minid_coat.Model.GameState;
+import com.dhruv.minid_coat.Model.PlayeMove;
 import com.dhruv.minid_coat.Model.Status;
 import com.dhruv.minid_coat.Repository.GameRepository;
 import org.apache.coyote.BadRequestException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -15,13 +16,17 @@ import java.util.*;
 @Component
 public class GameService {
     private final GameRepository gameRepository;
+    private final SimpMessagingTemplate simpMessagingTemplate;
 
     private final RedisTemplate<String, Object> redisTemplate;
 
-    public GameService(GameRepository gameRepository,RedisTemplate<String, Object> redisTemplate)
+    public GameService(GameRepository gameRepository,
+                       RedisTemplate<String, Object> redisTemplate,
+                       SimpMessagingTemplate simpMessagingTemplate)
     {
         this.gameRepository=gameRepository;
         this.redisTemplate=redisTemplate;
+        this.simpMessagingTemplate=simpMessagingTemplate;
     }
     public String createGame(List<String> playersName) throws Exception {
         Game game=new Game();
@@ -124,5 +129,11 @@ public class GameService {
             }
         }
         return deck;
+    }
+    public void playMove(PlayeMove playerMove,String gameId) {
+        String player = playerMove.getPlayer();
+        String move = playerMove.getMove();
+        String message = player+" played "+move;
+        simpMessagingTemplate.convertAndSend("/topic/game-updates",message);
     }
 }

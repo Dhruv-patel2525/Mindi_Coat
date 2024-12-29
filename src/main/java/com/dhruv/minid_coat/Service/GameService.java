@@ -1,11 +1,10 @@
 package com.dhruv.minid_coat.Service;
 
-import com.dhruv.minid_coat.Model.Game;
-import com.dhruv.minid_coat.Model.GameState;
-import com.dhruv.minid_coat.Model.PlayeMove;
-import com.dhruv.minid_coat.Model.Status;
+import com.dhruv.minid_coat.Model.*;
 import com.dhruv.minid_coat.Repository.GameRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.coyote.BadRequestException;
+import org.bson.types.ObjectId;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -19,14 +18,17 @@ public class GameService {
     private final SimpMessagingTemplate simpMessagingTemplate;
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private ObjectMapper objectMapper;
 
     public GameService(GameRepository gameRepository,
                        RedisTemplate<String, Object> redisTemplate,
-                       SimpMessagingTemplate simpMessagingTemplate)
+                       SimpMessagingTemplate simpMessagingTemplate,
+                        ObjectMapper objectMapper)
     {
         this.gameRepository=gameRepository;
         this.redisTemplate=redisTemplate;
         this.simpMessagingTemplate=simpMessagingTemplate;
+        this.objectMapper=objectMapper;
     }
     public String createGame(List<String> playersName) throws Exception {
         Game game=new Game();
@@ -73,16 +75,19 @@ public class GameService {
         Collections.shuffle(deck);
 
         Map<String, List<String>> teamAHands = distributeCards(deck,game.getTeamA(),noOFCards);
-        Map<String, List<String>> teamBHands = distributeCards(deck,game.getTeamA(),noOFCards);
+        Map<String, List<String>> teamBHands = distributeCards(deck,game.getTeamB(),noOFCards);
 
 
         GameState gameState = new GameState();
         gameState.setGameId(gameId);
-        gameState.setDeck(deck);
+        //gameState.setDeck(deck);
         gameState.setTeamAHands(teamAHands);
         gameState.setTeamBHands(teamBHands);
         gameState.setOrderedTeams(orderedTeams);
         gameState.setCurrentTurn(0);
+        gameState.setCurrentRound(1);
+        gameState.setRound(new HashMap<>());
+        gameState.setTotalRound(noOFCards);
 
         redisTemplate.opsForValue().set("game:" + gameId, gameState);
 
@@ -130,10 +135,107 @@ public class GameService {
         }
         return deck;
     }
-    public void playMove(PlayeMove playerMove,String gameId) {
+    public void playMove(PlayeMove playerMove,String gameId) throws Exception {
+        GameState gameState=getGameState(gameId);
+
         String player = playerMove.getPlayer();
         String move = playerMove.getMove();
+
+        if(!gameState.getOrderedTeams().get(gameState.getCurrentTurn()).equals(player))
+        {
+            throw new BadRequestException("It is not "+player+" turn");
+        }
+
+        gameState = checkGameStatus(player,move,gameState,gameId);
+        redisTemplate.opsForValue().set("game:" + gameId, gameState);
+        //check which player turn was it what did player choose for their current round
+        //web socket message
+
+
         String message = player+" played "+move;
-        simpMessagingTemplate.convertAndSend("/topic/game-updates",message);
+        ChatMessage chatMessage=new ChatMessage("MOVE",message,player);
+        simpMessagingTemplate.convertAndSend("/topic/game-updates",chatMessage);
+    }
+
+    private GameState checkGameStatus(String player, String move, GameState gameState,String gameId)
+    {
+        int totalPlayer=gameState.getOrderedTeams().size();
+        Map<String,String> round=gameState.getRound();
+        round.put(player,move);
+
+        //Round completes logic
+        if(round.size()==totalPlayer)
+        {
+            int playerturn=(gameState.getCurrentTurn()+1)%totalPlayer;
+            String roundWinner=whoWonRound(round,gameState.getOrderedTeams().get(playerturn),gameState.getTrumpCard());             //check who won
+            Map<String,Integer>scores = gameState.getScores();
+            if(gameState.getTeamAHands().containsKey(roundWinner))
+            {
+                scores.put("teamA", scores.getOrDefault("teamA",0)+totalPlayer);
+            }
+            else
+            {
+                scores.put("teamB", scores.getOrDefault("teamB",0)+totalPlayer);
+
+            }
+            gameState.setScores(scores);            //update the score
+            gameState.setRound(new HashMap<>());
+            gameState.setCurrentRound(gameState.getCurrentRound()+1);
+            gameState.setCurrentTurn(gameState.getOrderedTeams().indexOf(roundWinner));  //set current turn based on who won
+        }
+        else
+        {
+            gameState.setRound(round);
+            gameState.setCurrentTurn((gameState.getCurrentTurn()+1)%totalPlayer);
+        }
+
+        //game finished logic
+        if(gameState.getCurrentRound()>gameState.getTotalRound())
+        {
+            String message=(gameState.getScores().get("teamA")>gameState.getScores().get("teamB"))?"Team A ":"Team B ";
+            ChatMessage chatMessage=new ChatMessage("WINNER",message+"is Winner",player);
+            simpMessagingTemplate.convertAndSend("/topic/game-updates",chatMessage);
+            //Game finished change the status and save in database
+        }
+       return gameState;
+    }
+
+
+//    {
+//         ObjectId id;
+//         String gameId;
+//         List<String> deck;
+//         Map<String, List<String>> teamAHands;
+//         Map<String, List<String>> teamBHands;
+//         List<String> orderedTeams;
+//         int currentTurn;
+//         int currentRound;
+//         int totalRound
+//         List<String>round;
+//         String trumpCard
+//         scores
+//    }
+
+    private String whoWonRound(Map<String, String> round, String firstTurnPlayer, String trumpCard)
+    {
+
+        //all cards color is same
+        //different cards color with null trump card
+        //different cards color with non-null trump card
+        return null;
+    }
+    public GameState getGameState(String gameId)
+    {
+        Object gameStateObj = redisTemplate.opsForValue().get("game:" + gameId);
+        if (gameStateObj instanceof Map) {
+            try {
+                GameState gameState = objectMapper.convertValue(gameStateObj, GameState.class);
+                return gameState;
+            } catch (Exception e) {
+                e.printStackTrace();
+                throw new RuntimeException(e.getMessage());
+            }
+        }
+        return null;
     }
 }

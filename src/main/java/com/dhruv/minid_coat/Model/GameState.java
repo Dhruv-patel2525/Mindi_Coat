@@ -14,11 +14,17 @@ public class GameState {
     @Id
     private ObjectId id;
     private String gameId;
-    private List<String> deck;
+//    private List<String> deck;
     private Map<String, List<String>> teamAHands;
     private Map<String, List<String>> teamBHands;
     private List<String> orderedTeams;
     private int currentTurn;
+    private int currentRound;
+    private int totalRound;
+    private Map<String,Integer> scores=Map.of("teamA", 0, "teamB", 0);
+    private Map<String,Integer> mindi_scores=Map.of("teamA", 0, "teamB", 0);
+    private Map<String,String>round;
+    private String trumpCard;
 
 
 

@@ -1,6 +1,7 @@
 package com.dhruv.minid_coat.controller;
 
 import com.dhruv.minid_coat.Model.Game;
+import com.dhruv.minid_coat.Model.PlayeMove;
 import com.dhruv.minid_coat.Model.TeamPlayer;
 import com.dhruv.minid_coat.Service.GameService;
 import org.springframework.http.HttpStatus;
@@ -79,7 +80,7 @@ public class GameController {
         }
     }
 
-    @PutMapping("{gameId}/start")
+    @PutMapping("/{gameId}/start")
     public ResponseEntity<?> startTheGame(@PathVariable java.lang.String gameId)
     {
         try{
@@ -94,7 +95,7 @@ public class GameController {
     }
 
     @PostMapping("{gameId}/end")
-    public ResponseEntity<?> endTheGame(@PathVariable java.lang.String gameId)
+    public ResponseEntity<?> endTheGame(@PathVariable String gameId)
     {
         try{
             gameService.endGame(gameId);
@@ -107,5 +108,29 @@ public class GameController {
         }
     }
 
+    @PostMapping("/{gameId}/play")
+    public ResponseEntity<?> playMove(@RequestBody PlayeMove playerMove,@PathVariable String gameId)
+    {
+        try{
+            gameService.playMove(playerMove,gameId);
+            return new ResponseEntity<>("Success",HttpStatus.OK);
+        }
+        catch(Exception e)
+        {
+            return new ResponseEntity<>(e.getMessage(),HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @GetMapping("/gameState/{gameId}")
+    public ResponseEntity<?> getGameStateForID(@PathVariable String gameId)
+    {
+        try{
+            return new ResponseEntity<>(gameService.getGameState(gameId),HttpStatus.OK);
+        }
+        catch(Exception e)
+        {
+            return new ResponseEntity<>(e.getMessage(),HttpStatus.BAD_REQUEST);
+        }
+    }
 
 }

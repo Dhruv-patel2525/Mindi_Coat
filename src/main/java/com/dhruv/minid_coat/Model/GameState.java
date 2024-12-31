@@ -14,9 +14,10 @@ public class GameState {
     @Id
     private ObjectId id;
     private String gameId;
-//    private List<String> deck;
-    private Map<String, List<String>> teamAHands;
-    private Map<String, List<String>> teamBHands;
+    private Map<String,List<String>>teams;
+    private Map<String,List<String>>hands;
+//    private Map<String, List<String>> teamAHands;
+//    private Map<String, List<String>> teamBHands;
     private List<String> orderedTeams;
     private int currentTurn;
     private int currentRound;

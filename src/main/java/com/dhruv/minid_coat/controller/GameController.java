@@ -121,5 +121,16 @@ public class GameController {
         }
     }
 
+    @GetMapping("/gameState/{gameId}")
+    public ResponseEntity<?> getGameStateForID(@PathVariable String gameId)
+    {
+        try{
+            return new ResponseEntity<>(gameService.getGameState(gameId),HttpStatus.OK);
+        }
+        catch(Exception e)
+        {
+            return new ResponseEntity<>(e.getMessage(),HttpStatus.BAD_REQUEST);
+        }
+    }
 
 }
